@@ -2,6 +2,8 @@
 
 FreeASR 支持音视频文件转写、浏览器录音、文稿编辑和 AI 总结。
 
+单文件上限为 50 MB、1 小时。浏览器通过 FFmpeg WebAssembly 提取首条音轨并转成 MP3，随后将音频发送给硅基流动。转换组件在首次使用时从 jsDelivr 加载。
+
 ## 部署
 
 `index.html` 是 GitHub Pages 前端。将 Pages 的发布来源设为 `main` 分支的根目录即可发布。
