@@ -43,10 +43,14 @@
 .exportOptions small{color:#bdc0cc;font-size:12px}
 @media(max-width:520px){.filecard{padding:14px 16px}.recordDialog{padding:20px}.notebar{gap:6px}.notebar>div{gap:2px}}
 
-#meetingCaptions{width:min(100%,680px);margin:14px auto;text-align:left;border:1px solid #ffffff29;background:#181d2a;border-radius:12px;padding:12px 14px}
-#captionStatus{display:block;color:#b3fa9c;font-size:13px;margin-bottom:8px}
-#captionLog{max-height:220px;min-height:68px;overflow:auto;font-size:18px;line-height:1.55;overflow-wrap:anywhere}
-.captionLine+.captionLine{margin-top:7px}.captionLine[data-final="false"]{color:#d1d7e5}
+#meetingCaptions{width:min(680px,100%);height:clamp(180px,28vh,238px);margin:14px auto;display:flex;flex-direction:column;text-align:left;border:1px solid #ffffff25;background:#131926;border-radius:14px;overflow:hidden}
+#captionStatus{display:block;flex:none;color:#b3fa9c;background:#ffffff06;font-size:12px;line-height:1.4;padding:9px 14px;border-bottom:1px solid #ffffff12}
+#captionLog{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;overflow-anchor:none;scrollbar-gutter:stable;font-size:clamp(16px,2vw,19px);line-height:1.55;overflow-wrap:anywhere;padding:10px 14px 12px}
+.captionLine{flex:none;color:#f5f7fb}
+.captionLine:first-child{margin-top:auto}
+.captionLine+.captionLine{margin-top:6px}
+.captionLine[data-final="false"]{color:#dbe8f3}
+.captionLine[data-final="false"]::after{content:'';display:inline-block;width:2px;height:.9em;margin-left:4px;vertical-align:-.06em;background:#b3fa9c;border-radius:1px}
 .speakerToggle{display:inline-flex;align-items:center;gap:6px;color:#e4e8f5;font-size:14px;margin:6px 0 10px}
 .segmentSpeaker{color:#bbf4a3;font-size:.85em;margin-right:6px}
 </style>
@@ -529,21 +533,51 @@ for(let i=0;i<65;i++){const bar=document.createElement('i');bar.style.height=(8+
 let captionMeeting = 0;
 let requestingMic = false;
 function updateMeetingCaption(session, message) {
-  if (typeof message.text !== 'string' || !message.text.trim()) return;
-  const sequence = Number.isInteger(message.sequence) ? message.sequence : session.fallbackSequence;
-  let row = session.rows.get(sequence);
-  const follow = captionLog.scrollHeight - captionLog.scrollTop - captionLog.clientHeight < 48;
-  if (!row) {
-    row = document.createElement('div');
+  // Status 2 is revisable; status 3 closes the sentence and status 4 can flush its tail.
+  const status = message.status ?? (message.final ? 3 : 2);
+  if (![2, 3, 4].includes(status) || typeof message.text !== 'string' || !message.text.trim()) return;
+  const finalized = status !== 2;
+  const hasSequence = Number.isInteger(message.sequence);
+  const sequence = hasSequence ? message.sequence : session.fallbackSequence;
+  let line = session.rows.get(sequence);
+  if (!line) {
+    const row = document.createElement('div');
     row.className = 'captionLine';
-    session.rows.set(sequence, row);
+    line = {row, target: '', animation: 0, finalized: false};
+    session.rows.set(sequence, line);
     captionLog.append(row);
   }
-  if (row.dataset.final === 'true' && !message.final) return;
-  row.textContent = message.text;
-  row.dataset.final = String(message.final);
-  if (message.final && !Number.isInteger(message.sequence)) session.fallbackSequence++;
-  if (follow) captionLog.scrollTop = captionLog.scrollHeight;
+  if (line.finalized) return;
+  if (!finalized && line.target === message.text) return;
+  cancelAnimationFrame(line.animation);
+  line.target = message.text;
+  line.finalized = finalized;
+  line.row.dataset.final = String(finalized);
+  const paint = value => {
+    line.row.textContent = value;
+    captionLog.scrollTop = captionLog.scrollHeight;
+  };
+  if (finalized) {
+    paint(message.text);
+    if (!hasSequence) session.fallbackSequence++;
+    return;
+  }
+
+  const before = Array.from(line.row.textContent);
+  const next = Array.from(message.text);
+  let count = 0;
+  while (count < before.length && count < next.length && before[count] === next[count]) count++;
+  // Paint the first available character immediately, then keep any burst under a few frames.
+  count = Math.min(count + 1, next.length);
+  paint(next.slice(0, count).join(''));
+  const step = Math.max(1, Math.ceil((next.length - count) / 5));
+  const reveal = () => {
+    if (!line.row.isConnected) return;
+    count = Math.min(count + step, next.length);
+    paint(next.slice(0, count).join(''));
+    if (count < next.length) line.animation = requestAnimationFrame(reveal);
+  };
+  if (count < next.length) line.animation = requestAnimationFrame(reveal);
 }
 
 let liveCaptions;
@@ -594,7 +628,7 @@ async function startLiveCaptions(stream) {
     if (context.sampleRate !== 16000) throw Error('PCM sample rate unavailable');
     const module = new Blob([`
       class PcmFrames extends AudioWorkletProcessor {
-        frame = new ArrayBuffer(3200);
+        frame = new ArrayBuffer(1600);
         position = 0;
         process(inputs) {
           const channel = inputs[0]?.[0];
@@ -606,7 +640,7 @@ async function startLiveCaptions(stream) {
             this.position += 2;
             if (this.position === this.frame.byteLength) {
               this.port.postMessage(this.frame, [this.frame]);
-              this.frame = new ArrayBuffer(3200);
+              this.frame = new ArrayBuffer(1600);
               view = new DataView(this.frame);
               this.position = 0;
             }
