@@ -43,6 +43,9 @@
 .exportOptions small{color:#bdc0cc;font-size:12px}
 @media(max-width:520px){.filecard{padding:14px 16px}.recordDialog{padding:20px}.notebar{gap:6px}.notebar>div{gap:2px}}
 
+#heroDrop{grid-template-columns:minmax(0,1fr)}
+#recPane{width:100%;min-width:0}
+#recPane #wave{gap:clamp(1px,.5vw,3px)}
 #meetingCaptions{width:min(680px,100%);height:clamp(180px,28vh,238px);margin:14px auto;display:flex;flex-direction:column;text-align:left;border:1px solid #ffffff25;background:#131926;border-radius:14px;overflow:hidden}
 #captionStatus{display:block;flex:none;color:#b3fa9c;background:#ffffff06;font-size:12px;line-height:1.4;padding:9px 14px;border-bottom:1px solid #ffffff12}
 #captionLog{display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;overflow-anchor:none;scrollbar-gutter:stable;font-size:clamp(16px,2vw,19px);line-height:1.55;overflow-wrap:anywhere;padding:10px 14px 12px}
