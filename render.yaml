@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: freeasr-live-captions
+    runtime: node
+    plan: free
+    region: singapore
+    branch: codex/render-live-captions
+    rootDir: render-captions
+    buildCommand: npm ci
+    startCommand: npm start
+    autoDeployTrigger: "off"
+    envVars:
+      - key: TELEAI_APP_ID
+        sync: false
+      - key: TELEAI_APP_KEY
+        sync: false
